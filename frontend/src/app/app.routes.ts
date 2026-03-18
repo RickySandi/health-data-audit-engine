@@ -8,4 +8,5 @@ export const routes: Routes = [
   { path: 'dashboard', component: DashboardComponent },
   { path: 'mapper', component: DataMapperComponent },
   { path: 'logs', component: SystemLogsComponent },
+  { path: 'audit', loadComponent: () => import('./quality-audit/quality-audit.component').then(m => m.QualityAuditComponent) },
 ];

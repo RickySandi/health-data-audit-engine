@@ -1,1 +1,59 @@
-<p>system-logs works!</p>
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold text-gray-900">System Logs & Processing History</h1>
+    <div class="flex gap-3">
+      <button routerLink="/dashboard" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
+        Dashboard
+      </button>
+      <button (click)="refreshLogs()" class="bg-med-blue hover:bg-med-blue/90 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        Refresh Logs
+      </button>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm text-gray-600">
+        <thead class="text-xs uppercase bg-gray-50 text-gray-500 border-b border-gray-100">
+          <tr>
+            <th class="px-4 py-3 font-semibold rounded-tl-lg">Timestamp</th>
+            <th class="px-4 py-3 font-semibold">Event</th>
+            <th class="px-4 py-3 font-semibold">File Name</th>
+            <th class="px-4 py-3 font-semibold rounded-tr-lg">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          @if (isLoading()) {
+            <!-- Skeleton layout -->
+             <tr class="animate-pulse">
+               <td class="px-4 py-4"><div class="h-4 bg-gray-200 rounded w-full"></div></td>
+               <td class="px-4 py-4"><div class="h-4 bg-gray-200 rounded w-full"></div></td>
+               <td class="px-4 py-4"><div class="h-4 bg-gray-200 rounded w-full"></div></td>
+               <td class="px-4 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+             </tr>
+          } @else {
+            @for (log of logs(); track log.timestamp) {
+              <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-4 py-3 font-mono text-xs text-gray-500">{{log.timestamp | date:'medium'}}</td>
+                <td class="px-4 py-3 font-medium text-gray-900">{{log.event}}</td>
+                <td class="px-4 py-3 italic text-gray-500">{{log.filename}}</td>
+                <td class="px-4 py-3">
+                  <span class="px-2.5 py-1 text-xs font-semibold rounded-full border shadow-sm inline-flex items-center gap-1.5"
+                    [class.bg-green-50]="log.status === 'Success'"
+                    [class.text-success-green]="log.status === 'Success'"
+                    [class.border-green-200]="log.status === 'Success'"
+                    [class.bg-red-50]="log.status === 'Error'"
+                    [class.text-alert-red]="log.status === 'Error'"
+                    [class.border-red-200]="log.status === 'Error'">
+                    {{log.status}}
+                  </span>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

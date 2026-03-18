@@ -1,7 +1,8 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router';
 import { NgxChartsModule, Color, ScaleType } from '@swimlane/ngx-charts';
+import { FilterService, FilterType } from '../shared/services/filter.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -10,7 +11,12 @@ import { NgxChartsModule, Color, ScaleType } from '@swimlane/ngx-charts';
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })
-export class DashboardComponent {
+export class DashboardComponent implements OnInit {
+  private router = inject(Router);
+  private filterService = inject(FilterService);
+
+  isLoading = signal(false);
+
   // Stats Signals
   totalRecords = signal(125430);
   dataQualityIndex = signal(94.2);
@@ -48,4 +54,24 @@ export class DashboardComponent {
     { id: 'H-0015', source: 'Patient Master', records: 800, status: 'Mapped', time: '5 hours ago' },
     { id: 'H-0016', source: 'Legacy EHR', records: 210, status: 'Mapped', time: '6 hours ago' }
   ]);
+
+  ngOnInit() {
+    // Reset global filter back to none when visiting dashboard
+    this.filterService.setFilter('none');
+  }
+
+  navigateToMapper(filter: FilterType) {
+    this.isLoading.set(true);
+    // Visual feedback: Simulate backend processing for 600ms
+    setTimeout(() => {
+      this.isLoading.set(false);
+      
+      if (filter === 'quality') {
+        this.router.navigate(['/audit'], { queryParams: { filter: 'missing' } });
+      } else {
+        this.filterService.setFilter(filter);
+        this.router.navigate(['/mapper']);
+      }
+    }, 600);
+  }
 }

@@ -58,3 +58,48 @@ class LabResult(Base):
     test_date = Column(DateTime, default=datetime.datetime.utcnow)
     
     case = relationship("Case", back_populates="lab_results")
+
+
+class TbImportAcData(Base):
+    __tablename__ = "tbImportAcData"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    FallID = Column(String, index=True)
+    PID = Column(String, index=True)
+    Einschaetzung = Column(DateTime)
+    IID = Column(String, index=True)
+    Kuerzel = Column(String)
+    SID_value = Column(String) 
+    
+    # Metadata fields for Dashboard
+    Provenance_Station = Column(String)
+    Provenance_Account = Column(String)
+    Quality_Is_Null = Column(Integer, default=0) # Or Boolean
+    Anomaly_Flag = Column(Integer, default=0) # Or Boolean
+
+class TbImportNursingDailyReports(Base):
+    __tablename__ = "tbImportNursingDailyReports"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    report_id = Column(String, index=True)
+    case_id = Column(String, index=True)
+    report_date = Column(DateTime)
+    nursing_note_free_text = Column(Text)
+    
+    # NLP Extracted Metadata
+    extracted_symptoms = Column(String) # JSON list
+    extracted_interventions = Column(String) # JSON list
+    patient_state = Column(String)
+    
+    # Flags
+    urgency_flag = Column(Integer, default=0)
+    anomaly_alert = Column(Integer, default=0)
+
+class DeviceMotionData(Base):
+    """ Used to cross-reference sensor data for falls against NLP notes """
+    __tablename__ = "device_motion_data"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(String, index=True)
+    event_type = Column(String) # e.g. 'fall', 'walking'
+    event_time = Column(DateTime)
