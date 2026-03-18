@@ -1,0 +1,164 @@
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold text-gray-900">Data Mapper & Ingestion</h1>
+  </div>
+
+  <!-- Drag and Drop Zone -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-8">
+    <div 
+      class="border-2 border-dashed rounded-xl p-12 text-center transition-colors duration-200 cursor-pointer"
+      [class.border-med-blue]="isDragging()"
+      [class.bg-blue-50]="isDragging()"
+      [class.border-gray-300]="!isDragging()"
+      [class.bg-gray-50]="!isDragging()"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)"
+      (click)="fileInput.click()">
+      
+      <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+      </svg>
+      <div class="text-lg font-medium text-gray-900 mb-1">Upload Medical Records</div>
+      <p class="text-sm text-gray-500 mb-4">Drag and drop CSV, PDF, or TXT files here, or click to browse</p>
+      <input #fileInput type="file" multiple class="hidden" (change)="onFileSelected($event)" accept=".csv,.pdf,.txt">
+      
+      <button class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
+        Browse Files
+      </button>
+    </div>
+  </div>
+
+  <!-- Live Processing Feed -->
+  @if (hasFiles()) {
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <h2 class="text-lg font-bold text-gray-900 mb-4">Live Processing Feed</h2>
+      
+      <div class="space-y-4">
+        @for (file of uploadedFiles(); track file.id) {
+          <div class="flex items-center justify-between p-4 rounded-lg border border-gray-100 bg-gray-50/50">
+            <div class="flex items-center gap-4 flex-1">
+              <!-- File Icon -->
+              <div class="w-10 h-10 rounded bg-white border border-gray-200 flex items-center justify-center shrink-0 shadow-sm">
+                @if (file.type === 'CSV') {
+                  <span class="text-xs font-bold text-success-green">CSV</span>
+                } @else if (file.type === 'PDF') {
+                  <span class="text-xs font-bold text-alert-red">PDF</span>
+                } @else {
+                  <span class="text-xs font-bold text-gray-600">TXT</span>
+                }
+              </div>
+              
+              <div class="flex-1 min-w-0 pr-4">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-sm font-semibold text-gray-900 truncate">{{file.name}}</span>
+                  <span class="text-xs text-gray-500">{{file.progress | number:'1.0-0'}}%</span>
+                </div>
+                <!-- Progress Bar -->
+                <div class="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                  <div class="bg-med-blue h-1.5 rounded-full transition-all duration-300 ease-out" 
+                       [style.width.%]="file.progress"></div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="shrink-0 ml-4 flex items-center gap-2">
+              @if (file.status === 'processing') {
+                <span class="flex items-center items-center text-xs font-medium text-gray-500 px-2.5 py-1 bg-gray-100 rounded-full">
+                  <svg class="animate-spin -ml-1 mr-2 h-3 w-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  Mapping...
+                </span>
+              } @else if (file.status === 'done') {
+                <button (click)="openMappingEditor(file)" class="text-xs font-medium bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded shadow-sm transition-colors">
+                  Review Mapping
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>
+
+<!-- Manual Mapping Editor Modal -->
+@if (isMappingModalOpen()) {
+  <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <!-- Backdrop overlay -->
+    <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" aria-hidden="true" (click)="closeMappingEditor()"></div>
+
+    <div class="flex min-h-screen items-center justify-center p-4 text-center sm:p-0">
+      <div class="relative transform overflow-hidden rounded-xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-4xl border border-gray-100">
+        
+        <!-- Modal Header -->
+        <div class="bg-white px-6 py-4 border-b border-gray-100 flex items-center justify-between sticky top-0 z-10">
+          <div>
+            <h3 class="text-lg font-semibold leading-6 text-gray-900" id="modal-title">Manual Mapping Editor</h3>
+            <p class="text-sm text-gray-500 mt-1">Reviewing: <span class="font-medium text-gray-700">{{currentMappingFile()}}</span></p>
+          </div>
+          <button type="button" class="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none" (click)="closeMappingEditor()">
+            <span class="sr-only">Close</span>
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Modal Body: Side-by-Side Comparison -->
+        <div class="px-6 py-6 pb-20 bg-gray-50/30 max-h-[70vh] overflow-y-auto">
+          <div class="grid grid-cols-12 gap-6 pb-4 border-b border-gray-200 mb-4 px-2">
+            <div class="col-span-5 text-sm font-semibold text-gray-900 uppercase tracking-wide">Source Data</div>
+            <div class="col-span-2 text-center text-sm font-semibold text-gray-500 uppercase tracking-wide">Confidence</div>
+            <div class="col-span-5 text-sm font-semibold text-med-blue uppercase tracking-wide">Target Schema</div>
+          </div>
+
+          <div class="space-y-4">
+            @for (field of currentMappingFields(); track field.sourceField) {
+              <div class="grid grid-cols-12 gap-6 items-center p-4 bg-white rounded-lg shadow-sm border border-gray-100 hover:border-med-blue/30 transition-colors">
+                <!-- Source -->
+                <div class="col-span-5">
+                  <div class="text-xs font-medium text-gray-500 mb-1">{{field.sourceField}}</div>
+                  <div class="text-sm font-medium text-gray-900 truncate bg-gray-50 px-3 py-2 rounded border border-gray-100">{{field.sourceValue}}</div>
+                </div>
+
+                <!-- Confidence indicator -->
+                <div class="col-span-2 flex flex-col items-center justify-center px-2">
+                  <svg class="w-5 h-5 text-gray-300 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                  <span class="text-xs font-bold"
+                    [class.text-success-green]="field.confidence >= 90"
+                    [class.text-yellow-600]="field.confidence >= 70 && field.confidence < 90"
+                    [class.text-alert-red]="field.confidence < 70">
+                    {{field.confidence}}%
+                  </span>
+                </div>
+
+                <!-- Target Dropdown -->
+                <div class="col-span-5">
+                  <div class="text-xs font-medium text-med-blue mb-1">Unified Schema Field</div>
+                  <select class="block w-full rounded border border-gray-200 shadow-sm focus:border-med-blue focus:ring focus:ring-med-blue/20 sm:text-sm p-2 outline-none bg-white font-medium text-gray-700 transition-all">
+                    <option [selected]="field.targetField === 'none'" value="none">-- Select Target Field --</option>
+                    <option [selected]="field.targetField === 'first_name'" value="first_name">Patient.first_name</option>
+                    <option [selected]="field.targetField === 'last_name'" value="last_name">Patient.last_name</option>
+                    <option [selected]="field.targetField === 'date_of_birth'" value="date_of_birth">Patient.date_of_birth</option>
+                    <option [selected]="field.targetField === 'medical_history_notes'" value="medical_history_notes">Patient.medical_history_notes</option>
+                    <option [selected]="field.targetField === 'epa_ac_score'" value="epa_ac_score">CareAssessment.epa_ac_score</option>
+                  </select>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="bg-gray-50 px-6 py-4 flex items-center justify-end gap-3 border-t border-gray-100">
+          <button type="button" class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-colors" (click)="closeMappingEditor()">
+            Cancel
+          </button>
+          <button type="button" class="rounded-lg bg-med-blue px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-med-blue/90 transition-colors" (click)="saveMapping()">
+            Confirm Mapping
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

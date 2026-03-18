@@ -1,0 +1,130 @@
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold text-gray-900">Executive Dashboard</h1>
+    <button class="bg-med-blue hover:bg-med-blue/90 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+      Export Report
+    </button>
+  </div>
+
+  <!-- Stats Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <!-- Total Records -->
+    <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm flex flex-col hover:shadow-md transition-shadow">
+      <div class="text-sm font-medium text-gray-500 mb-1">Total Records</div>
+      <div class="text-3xl font-bold text-gray-900">{{totalRecords() | number}}</div>
+      <div class="mt-2 flex items-center text-sm text-success-green font-medium">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+        <span>12.5% vs last month</span>
+      </div>
+    </div>
+    
+    <!-- Data Quality Index -->
+    <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm flex flex-col hover:shadow-md transition-shadow">
+      <div class="text-sm font-medium text-gray-500 mb-1">Data Quality Index</div>
+      <div class="text-3xl font-bold text-gray-900">{{dataQualityIndex()}}%</div>
+      <div class="mt-2 flex items-center text-sm text-success-green font-medium">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+        <span>+2.1% improvement</span>
+      </div>
+    </div>
+
+    <!-- Mapping Conflicts -->
+    <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm flex flex-col hover:shadow-md transition-shadow">
+      <div class="text-sm font-medium text-gray-500 mb-1">Mapping Conflicts</div>
+      <div class="text-3xl font-bold text-alert-red">{{mappingConflicts()}}</div>
+      <div class="mt-2 flex items-center text-sm text-alert-red font-medium">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span>Requires attention</span>
+      </div>
+    </div>
+
+    <!-- Efficiency Gain -->
+    <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm flex flex-col hover:shadow-md transition-shadow">
+      <div class="text-sm font-medium text-gray-500 mb-1">Efficiency Gain</div>
+      <div class="text-3xl font-bold text-med-blue">{{efficiencyGain()}}%</div>
+      <div class="mt-2 flex items-center text-sm text-gray-500 font-medium">
+        <span>Saved manual mapping time</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Visualizations -->
+    <div class="bg-white border border-gray-100 rounded-xl shadow-sm p-6 overflow-hidden">
+      <h2 class="text-lg font-bold text-gray-900 mb-4">Source System Distribution</h2>
+      <div class="h-[300px] w-full -ml-4">
+        <!-- Responsive Container for the chart -->
+        <div class="w-full h-full"> 
+          <ngx-charts-bar-horizontal
+            [scheme]="colorScheme"
+            [results]="sourceSystemData"
+            [gradient]="gradient"
+            [xAxis]="showXAxis"
+            [yAxis]="showYAxis"
+            [legend]="showLegend"
+            [showXAxisLabel]="showXAxisLabel"
+            [showYAxisLabel]="showYAxisLabel"
+            [xAxisLabel]="xAxisLabel"
+            [yAxisLabel]="yAxisLabel">
+          </ngx-charts-bar-horizontal>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="bg-white border border-gray-100 rounded-xl shadow-sm p-6 overflow-hidden flex flex-col">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold text-gray-900">Recent Harmonizations</h2>
+        <a routerLink="/logs" class="text-sm font-medium text-med-blue hover:underline">View All</a>
+      </div>
+      
+      <div class="overflow-x-auto flex-1">
+        <table class="w-full text-left text-sm text-gray-600">
+          <thead class="text-xs uppercase bg-gray-50 text-gray-500 border-b border-gray-100">
+            <tr>
+              <th class="px-4 py-3 font-semibold rounded-tl-lg">ID</th>
+              <th class="px-4 py-3 font-semibold">Source</th>
+              <th class="px-4 py-3 font-semibold">Records</th>
+              <th class="px-4 py-3 font-semibold rounded-tr-lg">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            @for (item of recentHarmonizations(); track item.id) {
+              <tr class="hover:bg-gray-50/50 transition-colors cursor-pointer group">
+                <td class="px-4 py-3 font-medium text-gray-900 group-hover:text-med-blue transition-colors">{{item.id}}</td>
+                <td class="px-4 py-3">{{item.source}}</td>
+                <td class="px-4 py-3">{{item.records}}</td>
+                <td class="px-4 py-3">
+                  <span class="px-2.5 py-1 text-xs font-semibold rounded-full border shadow-sm inline-flex items-center gap-1.5"
+                    [class.bg-green-50]="item.status === 'Mapped'"
+                    [class.text-success-green]="item.status === 'Mapped'"
+                    [class.border-green-200]="item.status === 'Mapped'"
+                    
+                    [class.bg-yellow-50]="item.status === 'Low Confidence'"
+                    [class.text-yellow-600]="item.status === 'Low Confidence'"
+                    [class.border-yellow-200]="item.status === 'Low Confidence'"
+                    
+                    [class.bg-red-50]="item.status === 'Manual Review Required'"
+                    [class.text-alert-red]="item.status === 'Manual Review Required'"
+                    [class.border-red-200]="item.status === 'Manual Review Required'">
+                    @if (item.status === 'Mapped') {
+                      <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    }
+                    @if (item.status === 'Manual Review Required') {
+                      <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    }
+                    @if (item.status === 'Low Confidence') {
+                      <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    }
+                    {{item.status}}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+sqlalchemy
+pandas
+pgvector
+python-multipart
+langchain
+psycopg2-binary

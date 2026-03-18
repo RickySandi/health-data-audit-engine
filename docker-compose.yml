@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    platform: linux/amd64
+    container_name: healthcare_pgvector
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: healthcare_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - healthcare-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d healthcare_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    container_name: healthcare_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://admin:secretpassword@db:5432/healthcare_db
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - healthcare-net
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: healthcare_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - healthcare-net
+
+volumes:
+  postgres_data:
+
+networks:
+  healthcare-net:
+    driver: bridge
