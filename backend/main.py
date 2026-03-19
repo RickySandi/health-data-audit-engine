@@ -8,7 +8,7 @@ app = FastAPI(title="Healthcare Data Mapping MVP")
 # Allow CORS for local Angular development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200"],
+    allow_origins=["http://localhost:4200", "http://localhost", "http://localhost:80"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -94,35 +94,51 @@ def update_anomaly_status(anomaly_id: int, update_data: AnomalyUpdate):
     finally:
         db.close()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:hackathon_secret@localhost:5444/health_data")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://{}:{}@db:5432/{}".format(
+        os.getenv("POSTGRES_USER", "postgres"),
+        os.getenv("POSTGRES_PASSWORD", "hackathon_secret"),
+        os.getenv("POSTGRES_DB", "health_data"),
+    )
+)
 
+import time
 import urllib.parse
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
-try:
+def _init_db(max_retries: int = 10, delay: int = 3):
     url = urllib.parse.urlparse(DATABASE_URL)
     db_name = url.path.lstrip('/')
     base_url = DATABASE_URL.replace('/' + db_name, '/postgres')
-    
-    conn = psycopg2.connect(base_url)
-    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-    cursor = conn.cursor()
-    cursor.execute(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{db_name}'")
-    exists = cursor.fetchone()
-    if not exists:
-        cursor.execute(f"CREATE DATABASE {db_name}")
-    cursor.close()
-    conn.close()
-    
-    conn2 = psycopg2.connect(DATABASE_URL)
-    conn2.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-    cursor2 = conn2.cursor()
-    cursor2.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    cursor2.close()
-    conn2.close()
-except Exception as e:
-    print(f"Error checking/creating database: {e}")
+    for attempt in range(max_retries):
+        try:
+            conn = psycopg2.connect(base_url)
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{db_name}'")
+            if not cursor.fetchone():
+                cursor.execute(f"CREATE DATABASE {db_name}")
+            cursor.close()
+            conn.close()
+
+            conn2 = psycopg2.connect(DATABASE_URL)
+            conn2.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            cursor2 = conn2.cursor()
+            cursor2.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            cursor2.close()
+            conn2.close()
+            print("Database initialised successfully.")
+            return
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"DB not ready (attempt {attempt + 1}/{max_retries}): {e} — retrying in {delay}s...")
+                time.sleep(delay)
+            else:
+                print(f"Error initialising database after {max_retries} attempts: {e}")
+
+_init_db()
 
 engine = create_engine(DATABASE_URL)
 

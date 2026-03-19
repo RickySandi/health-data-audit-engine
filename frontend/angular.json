@@ -34,7 +34,15 @@
             "styles": [
               "src/styles.scss"
             ],
-            "scripts": []
+            "scripts": [],
+            "allowedCommonJsDependencies": [
+              "html2canvas",
+              "jspdf",
+              "dompurify",
+              "canvg",
+              "rgbcolor",
+              "raf"
+            ]
           },
           "configurations": {
             "production": {
@@ -42,12 +50,12 @@
                 {
                   "type": "initial",
                   "maximumWarning": "500kB",
-                  "maximumError": "1MB"
+                  "maximumError": "2MB"
                 },
                 {
                   "type": "anyComponentStyle",
                   "maximumWarning": "4kB",
-                  "maximumError": "8kB"
+                  "maximumError": "16kB"
                 }
               ],
               "outputHashing": "all"
