@@ -39,9 +39,71 @@ def get_quality_audit(filter: str = None):
 
 @app.get("/dashboard-stats")
 def get_dashboard_stats():
-    return {
-        "medication_adherence": medication_adherence_stats["percentage"]
-    }
+    import json as _json
+    db = SessionLocal()
+    try:
+        # Total records across all import tables
+        from sqlalchemy import func, text
+        ac_count  = db.execute(text('SELECT COUNT(*) FROM "tbImportAcData"')).scalar() or 0
+        lab_count = db.execute(text('SELECT COUNT(*) FROM "tbImportLabsData"')).scalar() or 0
+        nur_count = db.execute(text('SELECT COUNT(*) FROM "tbImportNursingDailyReports"')).scalar() or 0
+        total_count = ac_count + lab_count + nur_count
+
+        # Source distribution from import log
+        rows = db.query(
+            TbImportLog.source_system,
+            func.sum(TbImportLog.row_count).label("total")
+        ).group_by(TbImportLog.source_system).all()
+        source_distribution = [{"name": r.source_system, "value": int(r.total)} for r in rows]
+
+        # Category completeness from import log
+        cat_rows = db.query(
+            TbImportLog.category,
+            func.sum(TbImportLog.row_count).label("total")
+        ).group_by(TbImportLog.category).all()
+        category_completeness = [{"name": r.category, "value": int(r.total)} for r in cat_rows]
+
+        # Anomaly count (non-dismissed)
+        anomaly_count = db.query(Anomaly).filter(Anomaly.status != "Dismissed").count()
+
+        # Unique source systems
+        unique_source_systems = db.query(func.count(func.distinct(TbImportLog.source_system))).scalar() or 0
+
+        # Recent imports (last 5)
+        recent = db.query(TbImportLog).order_by(TbImportLog.imported_at.desc()).limit(5).all()
+        recent_imports = [
+            {
+                "id": f"H-{r.id:04d}",
+                "source": r.source_system,
+                "records": r.row_count,
+                "status": r.status,
+                "imported_at": r.imported_at.isoformat() if r.imported_at else None
+            }
+            for r in recent
+        ]
+
+        return {
+            "total_count": total_count,
+            "source_distribution": source_distribution,
+            "category_completeness": category_completeness,
+            "medication_adherence": medication_adherence_stats["percentage"],
+            "anomaly_count": anomaly_count,
+            "unique_source_systems": unique_source_systems,
+            "recent_imports": recent_imports,
+        }
+    except Exception as e:
+        # Tables may not exist yet (first boot before any upload)
+        return {
+            "total_count": 0,
+            "source_distribution": [],
+            "category_completeness": [],
+            "medication_adherence": medication_adherence_stats["percentage"],
+            "anomaly_count": 0,
+            "unique_source_systems": 0,
+            "recent_imports": [],
+        }
+    finally:
+        db.close()
 
 import os
 import pandas as pd
@@ -50,7 +112,7 @@ from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel
 from fastapi import HTTPException
 from anomaly_service import detect_anomalies, commit_anomalies, evaluate_cross_check_datasets, evaluate_medication_adherence
-from models import Anomaly, Base
+from models import Anomaly, TbImportLabsData, TbImportLog, Base
 
 medication_adherence_stats = {"percentage": 0.0}
 
@@ -156,6 +218,21 @@ except Exception as e:
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+def _classify_import(filename: str, df) -> tuple:
+    """Return (source_system, category, status) for a given upload."""
+    name = (filename or "").lower()
+    if "nursing" in name or "daily_report" in name:
+        return ("Freetext Notes", "Nursing Assessments", "Mapped")
+    if "lab" in name or "synth_lab" in name:
+        return ("Labor-Befunde (PDF)", "Vital Signs", "Mapped")
+    if "medication" in name or "medic" in name:
+        return ("Kardio-DB (CSV)", "Medications", "Mapped")
+    if "motion" in name or "device" in name or "fall" in name:
+        return ("Freetext Notes", "Care Assessments", "Mapped")
+    # Default / epaAC data
+    return ("Kardio-DB (CSV)", "Care Assessments", "Mapped")
+
+
 @app.post("/map-data")
 async def map_data(file: UploadFile = File(...)):
     anomalies_detected = 0
@@ -204,12 +281,45 @@ async def map_data(file: UploadFile = File(...)):
             if missing_anomalies:
                 commit_anomalies(db, missing_anomalies)
                 anomalies_detected += len(missing_anomalies)
-                
+
             if med_anomalies:
                 commit_anomalies(db, med_anomalies)
                 anomalies_detected += len(med_anomalies)
-                
+
             anomalies_detected += detect_anomalies(db, file.filename, df)
+
+            # Write import log entry so dashboard-stats can aggregate
+            source_system, category, status = _classify_import(file.filename, df)
+            if anomalies_detected > 0 and anomalies_detected / max(len(df), 1) > 0.1:
+                status = "Manual Review Required"
+            elif anomalies_detected > 0:
+                status = "Low Confidence"
+
+            log_entry = TbImportLog(
+                filename=file.filename,
+                source_system=source_system,
+                category=category,
+                row_count=len(df),
+                status=status,
+            )
+            db.add(log_entry)
+
+            # Persist lab rows for completeness queries
+            if "lab" in (file.filename or "").lower() or "synth_lab" in (file.filename or "").lower():
+                case_col_l = next((c for c in df.columns if c.lower() in ["caseid", "case_id"]), None)
+                pat_col_l  = next((c for c in df.columns if c.lower() in ["pid", "patientid", "patient_id"]), None)
+                for _, row in df.iterrows():
+                    db.add(TbImportLabsData(
+                        case_id=str(row.get(case_col_l, "")) if case_col_l else None,
+                        patient_id=str(row.get(pat_col_l, "")) if pat_col_l else None,
+                        test_name=str(row.get("test_name", row.get("parameter", ""))) if pd.notnull(row.get("test_name", row.get("parameter"))) else None,
+                        result_value=str(row.get("result_value", row.get("value", ""))) if pd.notnull(row.get("result_value", row.get("value"))) else None,
+                        ref_low=str(row.get("_ref_low", "")) if pd.notnull(row.get("_ref_low")) else None,
+                        ref_high=str(row.get("_ref_high", "")) if pd.notnull(row.get("_ref_high")) else None,
+                        row_data_complete=0 if row.isnull().any() else 1,
+                    ))
+
+            db.commit()
         finally:
             db.close()
             

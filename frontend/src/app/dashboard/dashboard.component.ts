@@ -21,21 +21,33 @@ export class DashboardComponent implements OnInit {
   private http = inject(HttpClient);
 
   isLoading = signal(false);
+  isExporting = signal(false);
 
   // Stats Signals
-  totalRecords = signal(125430);
-  dataQualityIndex = signal(94.2);
+  totalRecords = signal(0);
+  dataQualityIndex = signal(0);
   anomaliesCount = signal(0);
   alertsCount = signal(0);
   hasHighSeverity = signal(false);
   efficiencyGain = signal(1.4);
+  uniqueSourceSystems = signal(0);
 
-  // Chart Data
-  sourceSystemData = [
-    { name: 'Kardio-DB (CSV)', value: 85000 },
-    { name: 'Labor-Befunde (PDF)', value: 32000 },
-    { name: 'Freetext Notes', value: 8430 }
-  ];
+  // Chart Data (populated dynamically from /dashboard-stats)
+  sourceSystemData: { name: string; value: number }[] = [];
+
+  // Data Quality chart — 6 unified schema categories
+  dataQualityData: { name: string; value: number }[] = [];
+
+  // Table Data
+  recentHarmonizations = signal<{ id: string; source: string; records: number; status: string; time: string }[]>([]);
+  dataQualityColorScheme: Color = {
+    // One distinct high-contrast brand color per category (6 entries = 6 bars,
+    // no cycling, no accidental colour re-use across the chart).
+    domain: ['#005eb8', '#10b981', '#6366f1', '#f59e0b', '#ef4444', '#0ea5e9'],
+    name: 'quality',
+    selectable: true,
+    group: ScaleType.Ordinal,
+  };
 
   // Chart options
   showXAxis = true;
@@ -53,72 +65,216 @@ export class DashboardComponent implements OnInit {
     group: ScaleType.Ordinal,
   };
 
-  // Table Data
-  recentHarmonizations = signal([
-    { id: 'H-0012', source: 'Kardio-DB', records: 450, status: 'Mapped', time: '10 mins ago' },
-    { id: 'H-0013', source: 'Labor-Befunde', records: 12, status: 'Low Confidence', time: '1 hour ago' },
-    { id: 'H-0014', source: 'Freetext Notes', records: 3, status: 'Manual Review Required', time: '2 hours ago' },
-    { id: 'H-0015', source: 'Patient Master', records: 800, status: 'Mapped', time: '5 hours ago' },
-    { id: 'H-0016', source: 'Legacy EHR', records: 210, status: 'Mapped', time: '6 hours ago' }
-  ]);
 
   ngOnInit() {
     // Reset global filter back to none when visiting dashboard
     this.filterService.setFilter('none');
-    this.fetchAnomalies();
     this.fetchDashboardStats();
+    this.fetchAnomalies();
   }
 
   fetchDashboardStats() {
     this.http.get<any>('http://localhost:8000/dashboard-stats').subscribe({
       next: (data) => {
-        if (data.medication_adherence !== undefined && data.medication_adherence > 0) {
+        if (data.total_count != null) {
+          this.totalRecords.set(data.total_count);
+        }
+        if (data.medication_adherence != null && data.medication_adherence > 0) {
           this.dataQualityIndex.set(data.medication_adherence);
+        }
+        if (data.anomaly_count != null) {
+          this.anomaliesCount.set(data.anomaly_count);
+        }
+        if (data.unique_source_systems != null) {
+          this.uniqueSourceSystems.set(data.unique_source_systems);
+        }
+        if (Array.isArray(data.source_distribution) && data.source_distribution.length > 0) {
+          this.sourceSystemData = data.source_distribution;
+        }
+        if (Array.isArray(data.category_completeness) && data.category_completeness.length > 0) {
+          this.dataQualityData = data.category_completeness;
+        }
+        if (Array.isArray(data.recent_imports)) {
+          const now = new Date();
+          this.recentHarmonizations.set(
+            data.recent_imports.map((r: any) => {
+              const diffMs = now.getTime() - new Date(r.imported_at).getTime();
+              const diffMins = Math.floor(diffMs / 60000);
+              let time: string;
+              if (diffMins < 1)       time = 'Just now';
+              else if (diffMins < 60) time = `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+              else {
+                const h = Math.floor(diffMins / 60);
+                time = `${h} hour${h > 1 ? 's' : ''} ago`;
+              }
+              return { id: r.id, source: r.source, records: r.records, status: r.status, time };
+            })
+          );
         }
       },
       error: (err) => console.error('Error fetching dashboard stats', err)
     });
   }
 
-  exportDashboardToPDF() {
-    this.isLoading.set(true);
+  async exportDashboardToPDF(): Promise<void> {
     const element = document.getElementById('dashboard-content');
-    
-    if (element) {
-      html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then((canvas: any) => {
-        // PDF Configuration
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const imgData = canvas.toDataURL('image/png');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        
-        // Add Header Branding
-        pdf.setFontSize(16);
-        pdf.setTextColor(15, 23, 42); // slate-900 equivalent
-        pdf.text('Smart Health Data Mapping - Automated Audit Report', 10, 15);
-        
-        pdf.setFontSize(11);
-        pdf.setTextColor(100, 116, 139); // slate-500 equivalent
-        pdf.text('Institution: Stadtspital Zürich', 10, 22);
-        
-        // Draw the captured DOM Image
-        pdf.addImage(imgData, 'PNG', 10, 30, pdfWidth - 20, pdfHeight - 20); // 10mm padding
-        
-        // Add Footer timestamp and AI Branding
-        const dateStr = new Date().toLocaleString();
-        pdf.setFontSize(9);
-        pdf.setTextColor(148, 163, 184); // slate-400
-        pdf.text(`Generated by AI Mapping Engine - ${dateStr}`, 10, pdf.internal.pageSize.getHeight() - 10);
-        
-        pdf.save(`SmartHealth_Mapping_Report_${new Date().getTime()}.pdf`);
-        this.isLoading.set(false);
-      }).catch((err: any) => {
-        console.error('Error generating PDF:', err);
-        this.isLoading.set(false);
+    if (!element) return;
+
+    this.isExporting.set(true);
+
+    // Refresh signals so the UI shows the latest data before we capture.
+    this.fetchAnomalies();
+    this.fetchDashboardStats();
+    await new Promise<void>(res => setTimeout(res, 1000));
+
+    // ── Phase 1: override SVG opacity at every level ────────────────────────
+    // ngx-charts can leave SVG shapes at partial opacity from its internal
+    // hover/animation tracking even when [animations]="false".  html2canvas
+    // reads the computed value, so we must force it on three distinct layers:
+    //
+    //   A. CSS rules  → inject a <style> that wins with !important
+    //   B. Inline style attribute → el.style.opacity / fillOpacity
+    //   C. SVG presentation attribute → the 'opacity' / 'fill' XML attribute
+    //
+    // All overrides are saved and restored in finally so the live UI is
+    // unchanged after export.
+
+    // A. CSS injection --------------------------------------------------------
+    const captureStyle = document.createElement('style');
+    captureStyle.id = 'pdf-capture-style';
+    captureStyle.textContent = `
+      #dashboard-content svg *,
+      #dashboard-content ngx-charts-bar-horizontal svg * {
+        opacity:        1 !important;
+        fill-opacity:   1 !important;
+        stroke-opacity: 1 !important;
+        animation:      none !important;
+        transition:     none !important;
+      }
+    `;
+    document.head.appendChild(captureStyle);
+
+    // B+C. Element-level overrides -------------------------------------------
+    type SavedShape = {
+      el:           SVGElement;
+      inlineOpacity: string;
+      fillOpacity:   string;
+      attrOpacity:   string | null;
+      attrFill:      string | null;
+    };
+    const savedShapes: SavedShape[] = [];
+
+    element.querySelectorAll<SVGElement>('svg rect, svg path, svg circle, svg ellipse').forEach(el => {
+      const attrFill = el.getAttribute('fill');
+      savedShapes.push({
+        el,
+        inlineOpacity: el.style.opacity,
+        fillOpacity:   el.style.fillOpacity,
+        attrOpacity:   el.getAttribute('opacity'),
+        attrFill,
       });
-    } else {
-      this.isLoading.set(false);
+
+      // Force inline opacity
+      el.style.opacity      = '1';
+      el.style.fillOpacity  = '1';
+      el.removeAttribute('opacity');   // presentation attribute wins over CSS in SVG
+
+      // Convert any rgba() fill to fully-opaque rgb()
+      if (attrFill) {
+        const m = attrFill.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,\s]+[\d.]+)?\s*\)/);
+        if (m) el.setAttribute('fill', `rgb(${m[1]},${m[2]},${m[3]})`);
+      }
+    });
+
+    // Also kill opacity on group wrappers (ngx-charts animates at the <g> level)
+    type SavedGroup = { el: SVGElement; inlineOpacity: string; attrOpacity: string | null };
+    const savedGroups: SavedGroup[] = [];
+
+    element.querySelectorAll<SVGElement>('svg g').forEach(g => {
+      savedGroups.push({ el: g, inlineOpacity: g.style.opacity, attrOpacity: g.getAttribute('opacity') });
+      g.style.opacity = '1';
+      g.removeAttribute('opacity');
+    });
+
+    // ── Phase 2: capture ────────────────────────────────────────────────────
+    let canvas: HTMLCanvasElement | null = null;
+    try {
+      canvas = await html2canvas(element, {
+        scale:           2,
+        backgroundColor: '#ffffff',
+        useCORS:         true,
+        allowTaint:      true,
+        logging:         true,
+      });
+    } catch (err) {
+      console.error('[PDF Export] html2canvas error:', err);
+      return;
+    } finally {
+      // ── Phase 3: restore all overridden styles ────────────────────────────
+      savedShapes.forEach(({ el, inlineOpacity, fillOpacity, attrOpacity, attrFill }) => {
+        el.style.opacity     = inlineOpacity;
+        el.style.fillOpacity = fillOpacity;
+        if (attrOpacity !== null) el.setAttribute('opacity', attrOpacity);
+        if (attrFill    !== null) el.setAttribute('fill', attrFill);
+        else                      el.removeAttribute('fill');
+      });
+      savedGroups.forEach(({ el, inlineOpacity, attrOpacity }) => {
+        el.style.opacity = inlineOpacity;
+        if (attrOpacity !== null) el.setAttribute('opacity', attrOpacity);
+      });
+      document.head.removeChild(captureStyle);
+      // isExporting is reset after the PDF is saved (or on error via return above)
     }
+
+    // ── Phase 4: build PDF ──────────────────────────────────────────────────
+    const pdf     = new jsPDF('p', 'mm', 'a4');
+    const pageW   = pdf.internal.pageSize.getWidth();
+    const pageH   = pdf.internal.pageSize.getHeight();
+    const marginX = 10;
+    const headerH = 42;
+    const footerH = 12;
+    const imgW    = pageW - marginX * 2;
+
+    pdf.setFontSize(16);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text('Smart Health Data Mapping – Automated Audit Report', marginX, 15);
+
+    pdf.setFontSize(11);
+    pdf.setTextColor(100, 116, 139);
+    pdf.text('Institution: Stadtspital Zürich', marginX, 22);
+
+    pdf.setFontSize(10);
+    pdf.setTextColor(0, 94, 184);
+    const srcCount = this.uniqueSourceSystems() || 3;
+    pdf.text(
+      `Data Origin: ${this.totalRecords().toLocaleString()} records across ${srcCount} source system${srcCount !== 1 ? 's' : ''}`,
+      marginX, 29
+    );
+
+    const [ar, ag, ab] = this.hasHighSeverity() ? [220, 38, 38] : [249, 115, 22];
+    pdf.setTextColor(ar, ag, ab);
+    pdf.text(
+      `Anomaly Detection: ${this.anomaliesCount()} anomalies detected` +
+      (this.hasHighSeverity() ? ' — HIGH SEVERITY' : ''),
+      marginX, 36
+    );
+
+    const imgData    = canvas.toDataURL('image/png');
+    const naturalH   = (canvas.height / canvas.width) * imgW;
+    const availableH = pageH - headerH - footerH;
+    const imgH       = Math.min(naturalH, availableH);
+
+    pdf.addImage(imgData, 'PNG', marginX, headerH, imgW, imgH);
+
+    pdf.setFontSize(9);
+    pdf.setTextColor(148, 163, 184);
+    pdf.text(
+      `Generated by AI Mapping Engine – ${new Date().toLocaleString()}`,
+      marginX, pageH - 5
+    );
+
+    pdf.save(`SmartHealth_Mapping_Report_${Date.now()}.pdf`);
+    this.isExporting.set(false);
   }
 
   fetchAnomalies() {

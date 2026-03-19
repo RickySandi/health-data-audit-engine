@@ -106,7 +106,7 @@ class DeviceMotionData(Base):
 
 class Anomaly(Base):
     __tablename__ = "anomalies"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(String, index=True)
     category = Column(String) # e.g., "Lab Anomalies", "Clinical Safety", "Cross-Check"
@@ -114,4 +114,33 @@ class Anomaly(Base):
     status = Column(String, default="Pending") # "Pending", "Validated", "Dismissed"
     details = Column(Text) # JSON string or text with anomaly specifics
     detected_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class TbImportLabsData(Base):
+    """Raw lab import rows — no FK to cases, uses string case_id."""
+    __tablename__ = "tbImportLabsData"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(String, index=True)
+    patient_id = Column(String, index=True)
+    test_name = Column(String)
+    result_value = Column(String)
+    ref_low = Column(String)
+    ref_high = Column(String)
+    test_date = Column(DateTime)
+    row_data_complete = Column(Integer, default=1)  # 0 = has nulls, 1 = complete
+    imported_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class TbImportLog(Base):
+    """One entry per uploaded file — tracks source system, category and row count."""
+    __tablename__ = "tbImportLog"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String)
+    source_system = Column(String)   # e.g. "Kardio-DB (CSV)", "Labor-Befunde (PDF)", "Freetext Notes"
+    category = Column(String)        # e.g. "Care Assessments", "Vital Signs", "Medications", …
+    row_count = Column(Integer, default=0)
+    status = Column(String, default="Mapped")  # "Mapped", "Low Confidence", "Manual Review Required"
+    imported_at = Column(DateTime, default=datetime.datetime.utcnow)
 

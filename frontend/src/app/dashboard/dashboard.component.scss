@@ -1,0 +1,26 @@
+// Applied to #dashboard-content during PDF export.
+// Freezes all transitions, hover effects, and animations so html2canvas
+// captures a stable, fully-painted frame with no mid-transition artifacts.
+#dashboard-content.capture-mode {
+  // Kill every CSS transition and animation in the subtree
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+    animation-duration: 0s !important;
+  }
+
+  // Suppress scale / shadow hover effects on stat cards
+  [class*="hover\\:scale"],
+  [class*="hover\\:shadow"] {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  // chart-wrapper containers are pinned to pixel dimensions by the TS code;
+  // overflow:hidden prevents any residual ngx-charts resize artefacts.
+  .chart-wrapper {
+    overflow: hidden;
+  }
+}

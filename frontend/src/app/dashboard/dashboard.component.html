@@ -1,12 +1,12 @@
 <div id="dashboard-content" class="space-y-6">
   <div class="flex items-center justify-between" data-html2canvas-ignore="true">
     <h1 class="text-2xl font-bold text-gray-900">Executive Dashboard</h1>
-    <button (click)="exportDashboardToPDF()" 
-            [disabled]="isLoading()"
+    <button (click)="exportDashboardToPDF()"
+            [disabled]="isExporting() || isLoading()"
             class="bg-med-blue hover:bg-med-blue/90 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
       <!-- Heroicon Solid/Download -->
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-      {{ isLoading() ? 'Exporting...' : 'Export Report' }}
+      {{ isExporting() ? 'Exporting...' : 'Export Report' }}
     </button>
   </div>
 
@@ -89,9 +89,9 @@
     <!-- Visualizations -->
     <div class="bg-white border border-gray-100 rounded-xl shadow-sm p-6 overflow-hidden">
       <h2 class="text-lg font-bold text-gray-900 mb-4">Source System Distribution</h2>
-      <div class="h-[300px] w-full -ml-4">
+      <div class="h-[300px] w-full -ml-4 chart-wrapper">
         <!-- Responsive Container for the chart -->
-        <div class="w-full h-full"> 
+        <div class="w-full h-full">
           <ngx-charts-bar-horizontal
             [scheme]="colorScheme"
             [results]="sourceSystemData"
@@ -161,6 +161,28 @@
             }
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Quality Bars: Diagnoses, Procedures, Nursing Assessments -->
+  <div class="bg-white border border-gray-100 rounded-xl shadow-sm p-6">
+    <h2 class="text-lg font-bold text-gray-900 mb-1">Data Quality Index</h2>
+    <p class="text-sm text-gray-500 mb-4">Field completeness across 6 unified schema categories (%)</p>
+    <div class="h-[340px] w-full -ml-4 chart-wrapper">
+      <div class="w-full h-full">
+        <ngx-charts-bar-horizontal
+          [scheme]="dataQualityColorScheme"
+          [results]="dataQualityData"
+          [gradient]="false"
+          [animations]="false"
+          [xAxis]="true"
+          [yAxis]="true"
+          [legend]="false"
+          [showXAxisLabel]="true"
+          [showYAxisLabel]="false"
+          [xAxisLabel]="'Completeness %'">
+        </ngx-charts-bar-horizontal>
       </div>
     </div>
   </div>
