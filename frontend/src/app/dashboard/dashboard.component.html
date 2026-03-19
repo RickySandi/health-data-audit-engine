@@ -1,10 +1,12 @@
-<div class="space-y-6">
-  <div class="flex items-center justify-between">
+<div id="dashboard-content" class="space-y-6">
+  <div class="flex items-center justify-between" data-html2canvas-ignore="true">
     <h1 class="text-2xl font-bold text-gray-900">Executive Dashboard</h1>
-    <button class="bg-med-blue hover:bg-med-blue/90 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors flex items-center gap-2">
+    <button (click)="exportDashboardToPDF()" 
+            [disabled]="isLoading()"
+            class="bg-med-blue hover:bg-med-blue/90 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
       <!-- Heroicon Solid/Download -->
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-      Export Report
+      {{ isLoading() ? 'Exporting...' : 'Export Report' }}
     </button>
   </div>
 
@@ -35,15 +37,15 @@
         </div>
       </div>
       
-      <!-- Quality (NULL / Missing values) -->
+      <!-- Quality (Medication Adherence) -->
       <div (click)="navigateToMapper('quality')" 
            class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm flex flex-col hover:shadow-md cursor-pointer hover:scale-105 transition-all hover:border-success-green/40 group">
-        <div class="text-sm font-medium text-gray-500 mb-1 group-hover:text-success-green transition-colors">Quality (Missing Values)</div>
+        <div class="text-sm font-medium text-gray-500 mb-1 group-hover:text-success-green transition-colors">Medication Adherence</div>
         <div class="text-3xl font-bold text-gray-900">{{dataQualityIndex()}}%</div>
         <div class="mt-2 flex items-center text-sm text-success-green font-medium">
           <!-- Heroicon Outline/Shield Check -->
           <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-          <span>Audit NULL records</span>
+          <span>Monitor critical doses</span>
         </div>
       </div>
 
@@ -73,7 +75,7 @@
       <div (click)="navigateToMapper('alerts')" 
            class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm flex flex-col hover:shadow-md cursor-pointer hover:scale-105 transition-all hover:border-alert-red/40 group">
         <div class="text-sm font-medium text-gray-500 mb-1 group-hover:text-alert-red transition-colors">Alerts</div>
-        <div class="text-3xl font-bold text-alert-red">12</div>
+        <div class="text-3xl font-bold text-alert-red">{{alertsCount()}}</div>
         <div class="mt-2 flex items-center text-sm text-alert-red font-medium">
           <!-- Heroicon Outline/Pencil Alt -->
           <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
@@ -94,6 +96,7 @@
             [scheme]="colorScheme"
             [results]="sourceSystemData"
             [gradient]="gradient"
+            [animations]="false"
             [xAxis]="showXAxis"
             [yAxis]="showYAxis"
             [legend]="showLegend"

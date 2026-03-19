@@ -37,14 +37,22 @@ def get_quality_audit(filter: str = None):
         ]
     return []
 
+@app.get("/dashboard-stats")
+def get_dashboard_stats():
+    return {
+        "medication_adherence": medication_adherence_stats["percentage"]
+    }
+
 import os
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel
 from fastapi import HTTPException
-from anomaly_service import detect_anomalies, commit_anomalies
+from anomaly_service import detect_anomalies, commit_anomalies, evaluate_cross_check_datasets, evaluate_medication_adherence
 from models import Anomaly, Base
+
+medication_adherence_stats = {"percentage": 0.0}
 
 class AnomalyUpdate(BaseModel):
     status: str
@@ -166,6 +174,13 @@ async def map_data(file: UploadFile = File(...)):
             
             df = df.dropna(subset=[case_col, pat_col])
         
+        # Medication Logic (If this is the medication file)
+        med_anomalies = []
+        if 'administration_status' in df.columns or 'record_type' in df.columns:
+            m_anoms, adher = evaluate_medication_adherence(df)
+            med_anomalies = m_anoms
+            medication_adherence_stats["percentage"] = adher
+        
         # Open DB Session
         import json
         db = SessionLocal()
@@ -173,6 +188,10 @@ async def map_data(file: UploadFile = File(...)):
             if missing_anomalies:
                 commit_anomalies(db, missing_anomalies)
                 anomalies_detected += len(missing_anomalies)
+                
+            if med_anomalies:
+                commit_anomalies(db, med_anomalies)
+                anomalies_detected += len(med_anomalies)
                 
             anomalies_detected += detect_anomalies(db, file.filename, df)
         finally:
@@ -196,6 +215,42 @@ async def map_data(file: UploadFile = File(...)):
     return {
         "message": f"Successfully received file {file.filename}", 
         "mapped_records": len(df), 
+        "anomalies_detected": anomalies_detected
+    }
+
+@app.post("/cross-check")
+async def cross_check(nursing_csv: UploadFile = File(...), motion_csv: UploadFile = File(...)):
+    anomalies_detected = 0
+    try:
+        nursing_df = pd.read_csv(nursing_csv.file)
+        motion_df = pd.read_csv(motion_csv.file)
+        
+        anomalies = evaluate_cross_check_datasets(nursing_df, motion_df)
+        
+        db = SessionLocal()
+        try:
+            commit_anomalies(db, anomalies)
+            anomalies_detected = len(anomalies)
+        finally:
+            db.close()
+            
+    except Exception as e:
+        app_logs.insert(0, {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "event": "Cross-Check Error",
+            "filename": f"{nursing_csv.filename} & {motion_csv.filename}",
+            "status": f"Error: {str(e)}"
+        })
+        return {"error": str(e)}
+
+    app_logs.insert(0, {
+        "timestamp": datetime.datetime.now().isoformat(),
+        "event": "Cross-Check Completed",
+        "filename": "Multiple Files",
+        "status": f"Success, {anomalies_detected} anomalies detected"
+    })
+    return {
+        "message": "Cross-check successful", 
         "anomalies_detected": anomalies_detected
     }
 

@@ -103,6 +103,172 @@ def evaluate_cross_check_fall(db: Session, case_id: str, text: str) -> list[Anom
             )
     return anomalies
 
+def evaluate_cross_check_datasets(nursing_df: pd.DataFrame, motion_df: pd.DataFrame) -> list[Anomaly]:
+    """
+    Routine 4: Cross-Check Innovation Service
+    Joins synthetic_nursing_daily_reports.csv and synthetic_device_motion_fall_data.csv on patient_id and date.
+    Searches for keywords ('sturz', 'fall', 'floor') in nursing text. 
+    If keyword found but sensor data shows fall_event_0_1 == 0, generates a 'Sensor Conflict' anomaly.
+    """
+    anomalies = []
+    
+    # Normalize column names for safe joining
+    # Check what columns nursing df has (patient_id, date, text/report, case_id)
+    pat_col_n = next((c for c in nursing_df.columns if c.lower() in ['pid', 'patient_id', 'patientid']), None)
+    date_col_n = next((c for c in nursing_df.columns if c.lower() in ['date', 'report_date', 'timestamp']), None)
+    case_col_n = next((c for c in nursing_df.columns if c.lower() in ['caseid', 'case_id']), None)
+    text_col = next((c for c in nursing_df.columns if c.lower() in ['text', 'report', 'note', 'daily_report']), None)
+    
+    pat_col_m = next((c for c in motion_df.columns if c.lower() in ['pid', 'patient_id', 'patientid']), None)
+    date_col_m = next((c for c in motion_df.columns if c.lower() in ['date', 'report_date', 'timestamp']), None)
+    fall_col = next((c for c in motion_df.columns if c.lower() == 'fall_event_0_1'), None)
+    
+    if not (pat_col_n and pat_col_m and date_col_n and date_col_m and text_col and fall_col):
+        logger.error("Missing required columns for cross-check join.")
+        return anomalies
+        
+    # Standardize types for the join keys
+    nursing_df[pat_col_n] = nursing_df[pat_col_n].astype(str)
+    nursing_df[date_col_n] = pd.to_datetime(nursing_df[date_col_n], errors='coerce').dt.date
+    motion_df[pat_col_m] = motion_df[pat_col_m].astype(str)
+    motion_df[date_col_m] = pd.to_datetime(motion_df[date_col_m], errors='coerce').dt.date
+    
+    # Inner join on patient_id and date
+    merged = pd.merge(
+        nursing_df, motion_df, 
+        left_on=[pat_col_n, date_col_n], 
+        right_on=[pat_col_m, date_col_m], 
+        how='inner',
+        suffixes=('_nurs', '_motion')
+    )
+    
+    keywords = ['sturz', 'fall', 'floor']
+    
+    for index, row in merged.iterrows():
+        text = str(row.get(text_col, '')).lower()
+        has_keyword = any(kw in text for kw in keywords)
+        
+        # Check if sensor says 0
+        fall_event = row.get(fall_col, 0)
+        try:
+            fall_event = int(float(fall_event))
+        except (ValueError, TypeError):
+            fall_event = 0
+            
+        if has_keyword and fall_event == 0:
+            case_id = str(row.get(case_col_n, 'UNKNOWN'))
+            msg = "Fall reported in text but missed by motion sensor"
+            anomalies.append(
+                Anomaly(
+                    case_id=case_id,
+                    category="Sensor Conflict",
+                    severity_level="High",
+                    details=json.dumps({
+                        "note_text_snippet": str(row.get(text_col, ''))[0:150],
+                        "message": msg
+                    })
+                )
+            )
+            
+    return anomalies
+
+def evaluate_medication_adherence(df: pd.DataFrame) -> tuple[list[Anomaly], float]:
+    """
+    Routine 5: Medication Adherence Logic
+    1. Identify all ORDER records that have no corresponding ADMIN record of status 'given'.
+    2. Flag ADMIN records where administration_status is 'missed', 'held', or 'refused'.
+    3. If 'missed' dose is for critical medication, trigger High Severity Alert.
+    Returns: (anomalies_list, adherence_percentage)
+    """
+    anomalies = []
+    
+    pat_col = next((c for c in df.columns if c.lower() in ['pid', 'patient_id', 'patientid']), None)
+    ord_id_col = next((c for c in df.columns if c.lower() in ['order_id', 'orderid']), None)
+    type_col = next((c for c in df.columns if c.lower() in ['record_type', 'action', 'type']), None)
+    status_col = next((c for c in df.columns if c.lower() in ['administration_status', 'status']), None)
+    med_col = next((c for c in df.columns if c.lower() in ['medication_name', 'medication', 'drug_name']), None)
+    case_col = next((c for c in df.columns if c.lower() in ['case_id', 'caseid']), None)
+
+    if not (ord_id_col and type_col and status_col):
+        # We can't map orders without these structural keys.
+        return [], 0.0
+        
+    case_col = case_col or pat_col or ord_id_col # fallback if case_id missing
+    
+    # Normalize
+    df[type_col] = df[type_col].astype(str).str.upper()
+    df[status_col] = df[status_col].astype(str).str.lower()
+    
+    orders = df[df[type_col] == 'ORDER']
+    admins = df[df[type_col] == 'ADMIN']
+    
+    total_orders = len(orders)
+    given_admins = len(admins[admins[status_col] == 'given'])
+    
+    if total_orders == 0:
+        adherence = 0.0
+    else:
+        adherence = (given_admins / total_orders) * 100
+        if adherence > 100:
+            adherence = 100.0
+
+    critical_keywords = ['heparin', 'apixaban', 'warfarin', 'rivaroxaban', 'enoxaparin', 'anticoagulant']
+
+    # 1. Missing ADMIN for an ORDER
+    # Group admins by order_id checking for at least one 'given'
+    admin_success = admins[admins[status_col] == 'given'][ord_id_col].unique()
+    
+    for _, order_row in orders.iterrows():
+        o_id = order_row.get(ord_id_col)
+        if o_id not in admin_success:
+            # Order was not given
+            c_id = str(order_row.get(case_col, 'UNKNOWN'))
+            med_name = str(order_row.get(med_col, 'Unknown Medication')).lower()
+            
+            is_critical = any(kw in med_name for kw in critical_keywords)
+            sev = "High" if is_critical else "Medium"
+            
+            anomalies.append(
+                Anomaly(
+                    case_id=c_id,
+                    category="Missed Medication",
+                    severity_level=sev,
+                    details=json.dumps({
+                        "order_id": str(o_id),
+                        "medication": med_name,
+                        "message": "ORDER record lacks a corresponding ADMIN record with status 'given'."
+                    })
+                )
+            )
+
+    # 2. Flag explicitly missed/held/refused admins
+    flagged_statuses = ['missed', 'held', 'refused']
+    flagged_admins = admins[admins[status_col].isin(flagged_statuses)]
+    
+    for _, admin_row in flagged_admins.iterrows():
+        c_id = str(admin_row.get(case_col, 'UNKNOWN'))
+        med_name = str(admin_row.get(med_col, 'Unknown Medication')).lower()
+        stat = str(admin_row.get(status_col))
+        
+        is_critical = (stat == 'missed' and any(kw in med_name for kw in critical_keywords))
+        sev = "High" if is_critical else "Medium"
+        
+        anomalies.append(
+            Anomaly(
+                case_id=c_id,
+                category=f"Medication {stat.capitalize()}",
+                severity_level=sev,
+                details=json.dumps({
+                    "order_id": str(admin_row.get(ord_id_col)),
+                    "medication": med_name,
+                    "administration_status": stat,
+                    "message": f"Dose was flagged as {stat}."
+                })
+            )
+        )
+
+    return anomalies, round(adherence, 1)
+
 def commit_anomalies(db: Session, anomalies: list[Anomaly]):
     """ Helper to persist a list of anomalies """
     if anomalies:
