@@ -9,4 +9,5 @@ export const routes: Routes = [
   { path: 'mapper', component: DataMapperComponent },
   { path: 'logs', component: SystemLogsComponent },
   { path: 'audit', loadComponent: () => import('./quality-audit/quality-audit.component').then(m => m.QualityAuditComponent) },
+  { path: 'anomaly-explorer', loadComponent: () => import('./anomaly-explorer/anomaly-explorer.component').then(m => m.AnomalyExplorerComponent) },
 ];

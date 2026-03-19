@@ -1,6 +1,7 @@
 import { Component, signal, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, Router } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { NgxChartsModule, Color, ScaleType } from '@swimlane/ngx-charts';
 import { FilterService, FilterType } from '../shared/services/filter.service';
 
@@ -14,13 +15,15 @@ import { FilterService, FilterType } from '../shared/services/filter.service';
 export class DashboardComponent implements OnInit {
   private router = inject(Router);
   private filterService = inject(FilterService);
+  private http = inject(HttpClient);
 
   isLoading = signal(false);
 
   // Stats Signals
   totalRecords = signal(125430);
   dataQualityIndex = signal(94.2);
-  mappingConflicts = signal(124);
+  anomaliesCount = signal(0);
+  hasHighSeverity = signal(false);
   efficiencyGain = signal(1.4);
 
   // Chart Data
@@ -58,6 +61,21 @@ export class DashboardComponent implements OnInit {
   ngOnInit() {
     // Reset global filter back to none when visiting dashboard
     this.filterService.setFilter('none');
+    this.fetchAnomalies();
+  }
+
+  fetchAnomalies() {
+    this.http.get<any[]>('http://localhost:8000/anomalies').subscribe({
+      next: (data) => {
+        this.anomaliesCount.set(data.length);
+        this.hasHighSeverity.set(data.some(a => a.severity_level === 'High' || a.severity_level === 'Critical'));
+      },
+      error: (err) => console.error('Error fetching anomalies', err)
+    });
+  }
+
+  navigateToExplorer() {
+    this.router.navigate(['/anomaly-explorer']);
   }
 
   navigateToMapper(filter: FilterType) {

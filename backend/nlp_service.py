@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from models import TbImportNursingDailyReports, DeviceMotionData
 from langchain_community.llms import Ollama
 from langchain.prompts import PromptTemplate
+import anomaly_service
 
 # Optional spacy import for local extraction if Ollama is not running
 try:
@@ -91,8 +92,8 @@ def extract_clinical_insights(df: pd.DataFrame, db: Session, use_ollama: bool = 
             return {"status": "error", "message": f"Missing column: {col}"}
             
     records_to_insert = []
-    anomalies_triggered = 0
-    high_urgency_count = 0
+    anomalies_triggered: int = 0
+    high_urgency_count: int = 0
     
     for _, row in df.iterrows():
         case_id = str(row['case_id'])
@@ -109,15 +110,11 @@ def extract_clinical_insights(df: pd.DataFrame, db: Session, use_ollama: bool = 
             high_urgency_count += 1
             
         # Anomaly Detection constraint
-        has_anomaly = False
-        text_lower = text.lower()
-        if 'fall' in text_lower or 'fell' in text_lower:
-            motion_events = get_device_events(case_id, db)
-            
-            if 'fall' not in motion_events:
-                has_anomaly = True
-                anomalies_triggered += 1
-                logger.error(f"ANOMALY TRIGGERED [Case {case_id}]: Note mentions fall, but no corresponding sensor event exists in device module.")
+        cross_check_anomalies = anomaly_service.evaluate_cross_check_fall(db, case_id, text)
+        has_anomaly = len(cross_check_anomalies) > 0
+        if has_anomaly:
+            anomalies_triggered += 1
+            anomaly_service.commit_anomalies(db, cross_check_anomalies)
                 
         record = TbImportNursingDailyReports(
             report_id=str(row['report_id']),

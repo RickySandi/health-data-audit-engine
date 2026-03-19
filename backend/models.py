@@ -103,3 +103,15 @@ class DeviceMotionData(Base):
     case_id = Column(String, index=True)
     event_type = Column(String) # e.g. 'fall', 'walking'
     event_time = Column(DateTime)
+
+class Anomaly(Base):
+    __tablename__ = "anomalies"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(String, index=True)
+    category = Column(String) # e.g., "Lab Anomalies", "Clinical Safety", "Cross-Check"
+    severity_level = Column(String) # e.g., "Low", "Medium", "High", "Critical"
+    status = Column(String, default="Pending") # "Pending", "Validated", "Dismissed"
+    details = Column(Text) # JSON string or text with anomaly specifics
+    detected_at = Column(DateTime, default=datetime.datetime.utcnow)
+

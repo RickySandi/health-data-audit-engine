@@ -6,17 +6,17 @@ services:
     platform: linux/amd64
     container_name: healthcare_pgvector
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: secretpassword
-      POSTGRES_DB: healthcare_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: hackathon_secret
+      POSTGRES_DB: health_data
     ports:
-      - "5432:5432"
+      - "5444:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - healthcare-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d healthcare_db"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d health_data"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -28,7 +28,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://admin:secretpassword@db:5432/healthcare_db
+      - DATABASE_URL=postgresql://postgres:hackathon_secret@db:5432/health_data
     depends_on:
       db:
         condition: service_healthy

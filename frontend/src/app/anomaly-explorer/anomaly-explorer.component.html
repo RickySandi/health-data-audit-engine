@@ -1,0 +1,103 @@
+<div class="space-y-6 max-w-6xl mx-auto">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold text-gray-900">Anomaly Explorer (Double-Check)</h1>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <table class="w-full text-left text-sm text-gray-600">
+      <thead class="text-xs uppercase bg-gray-50 text-gray-500 border-b border-gray-100">
+        <tr>
+          <th class="px-6 py-4 font-semibold">Case ID</th>
+          <th class="px-6 py-4 font-semibold">Category</th>
+          <th class="px-6 py-4 font-semibold">Severity</th>
+          <th class="px-6 py-4 font-semibold">Details (Raw vs Expected)</th>
+          <th class="px-6 py-4 font-semibold">Status</th>
+          <th class="px-6 py-4 font-semibold text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        @for (item of anomalies(); track item.id) {
+          <tr class="hover:bg-gray-50/50 transition-colors">
+            <td class="px-6 py-4 font-medium text-gray-900">{{item.case_id}}</td>
+            <td class="px-6 py-4">
+              <span class="font-semibold text-gray-700">{{item.category}}</span>
+            </td>
+            <td class="px-6 py-4">
+              <span class="px-2.5 py-1 text-xs font-semibold rounded-full border"
+                [class.bg-red-50]="item.severity_level === 'High' || item.severity_level === 'Critical'"
+                [class.text-alert-red]="item.severity_level === 'High' || item.severity_level === 'Critical'"
+                [class.border-red-200]="item.severity_level === 'High' || item.severity_level === 'Critical'"
+                
+                [class.bg-yellow-50]="item.severity_level === 'Medium'"
+                [class.text-yellow-600]="item.severity_level === 'Medium'"
+                [class.border-yellow-200]="item.severity_level === 'Medium'"
+                
+                [class.bg-gray-50]="item.severity_level === 'Low'"
+                [class.text-gray-600]="item.severity_level === 'Low'"
+                [class.border-gray-200]="item.severity_level === 'Low'">
+                {{item.severity_level}}
+              </span>
+            </td>
+            <td class="px-6 py-4 w-1/3">
+              <div class="bg-gray-50 border border-gray-100 p-3 rounded text-xs space-y-1 font-mono">
+                <!-- Dynamic keys display based on category -->
+                @if (item.category === 'Lab Anomalies') {
+                  <p><span class="text-gray-500">Test Name:</span> <span class="text-med-blue font-bold">{{item.parsedDetails?.test_name}}</span></p>
+                  <p><span class="text-gray-500">Raw Value Flag:</span> <span class="text-alert-red font-bold">{{item.parsedDetails?.flag}}</span> (Expected Range: N/A without flag)</p>
+                  <p class="mt-1 text-gray-600 italic">"{{item.parsedDetails?.message}}"</p>
+                } @else if (item.category === 'Clinical Safety') {
+                  <p><span class="text-gray-500">Vital Sign:</span> <strong class="text-med-blue">{{item.parsedDetails?.vital_sign}}</strong></p>
+                  <p><span class="text-gray-500">Raw Value:</span> <strong class="text-alert-red">{{item.parsedDetails?.value}}</strong></p>
+                  <p><span class="text-gray-500">Expected Range:</span> 30 - 220</p>
+                  <p class="mt-1 text-gray-600 italic">"{{item.parsedDetails?.message}}"</p>
+                } @else if (item.category === 'Cross-Check') {
+                  <p><span class="text-gray-500">Note Snippet:</span> <span class="text-gray-800">"{{item.parsedDetails?.note_text_snippet}}"</span></p>
+                  <p class="mt-1 text-gray-600 italic">"{{item.parsedDetails?.message}}"</p>
+                  <p><span class="text-gray-500">Expected:</span> Device motion event (fall)</p>
+                } @else {
+                  <pre class="whitespace-pre-wrap">{{item.details}}</pre>
+                }
+              </div>
+            </td>
+            <td class="px-6 py-4">
+              <span class="inline-flex items-center gap-1.5 font-medium"
+                [class.text-orange-500]="item.status === 'Pending'"
+                [class.text-success-green]="item.status === 'Validated'"
+                [class.text-gray-400]="item.status === 'Dismissed'">
+                @if (item.status === 'Pending') {
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                } @else if (item.status === 'Validated') {
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                } @else {
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                }
+                {{item.status}}
+              </span>
+            </td>
+            <td class="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+              @if (item.status === 'Pending') {
+                <button (click)="updateStatus(item.id, 'Validated')" class="px-3 py-1.5 text-xs font-semibold rounded bg-success-green/10 text-success-green hover:bg-success-green hover:text-white transition-colors">
+                  Validate
+                </button>
+                <button (click)="updateStatus(item.id, 'Dismissed')" class="px-3 py-1.5 text-xs font-semibold rounded bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
+                  Dismiss
+                </button>
+              }
+            </td>
+          </tr>
+        }
+        @if (anomalies().length === 0) {
+          <tr>
+            <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+              <div class="flex flex-col items-center justify-center">
+                <svg class="w-12 h-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <p class="text-base font-medium">No anomalies found.</p>
+                <p class="text-sm mt-1">The system has not detected any data irregularities yet.</p>
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>
