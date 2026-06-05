@@ -1,114 +1,142 @@
-# Smart Health Data Mapping - Automated Audit MVP
-*Building a 'Digital Twin' of Patient Care*
+# Smart Health Data Mapping
 
-## 🚀 Project Essence
-The healthcare sector produces massive amounts of fragmented data trapped in silos—Hospital Information Systems (HIS), EPS records, handwritten nursing notes, and raw sensor telemetry. This application acts as a central **AI Mapping Engine**, unifying these heterogeneous datasets into a single, standardized SQL schema. By bridging structural, clinical, and temporal gaps, we create a 'Digital Twin' of care that enables holistic auditing, real-time safety cross-checks, and actionable insights.
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.111-green)
+![Angular](https://img.shields.io/badge/Angular-20-red)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20+%20pgvector-336791)
+![Docker](https://img.shields.io/badge/docker-compose-2496ED)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-## 🔄 The Functional Flow
-
-### Step 1: Ingestion
-A drag-and-drop interface capable of handling heterogeneous files—including CSV, Excel, and free-text PDF exports—simultaneously routing them to backend pipelines.
-
-### Step 2: Processing
-The core pipeline normalizes data through structural mapping, duplicate removal (implementing last-record logic based on timestamps), and value neutralization (transforming corrupted strings like `'unknow'` or `'Missing'` directly to `NULL` for clean database ingestion).
-
-### Step 3: Intelligence
-The engine moves beyond structural mapping to clinical reasoning:
-- **NLP Extraction**: Deconstructs free-text nursing daily reports to extract clinical entities.
-- **Rules Engine**: Parses parsed lab records (`_ref_low`, `_ref_high`) catching out-of-bounds metrics and flagging critical severity events.
-
-### Step 4: Innovation (The 'Hidden Fall' Service)
-A cross-check synchronization service between human input and machine telemetry. The engine dynamically joins daily nursing reports with device motion data. If NLP detects a hazard keyword (`sturz`, `fall`, `floor`) but the sensor's `fall_event_0_1` registers as `0` (no fall), a **High Severity 'Sensor Conflict' alert** is triggered.
-
-### Step 5: Visualization
-An interactive Angular dashboard translating the unified schema into:
-- Real-time KPIs (Data Quality Index, Medication Adherence, Anomalies).
-- Source System Distribution Charts.
-- An **Anomaly Explorer** with a 'Double-Check' interface to Validate/Dismiss flagged metrics.
-- One-click **PDF Report Export** powered by html2canvas & jsPDF for institutional compliance auditing.
+A full-stack AI mapping engine that unifies fragmented healthcare data — Hospital Information Systems, EPS records, nursing notes, and sensor telemetry — into a single standardised SQL schema. Built as a hackathon MVP at START Hack 2026.
 
 ---
 
-## 🧪 The Testing Suite
+## Screenshots
 
-This repository includes a suite of synthetic data files designed to test distinct logic flows.
+### Executive Dashboard — KPIs & Source Distribution
 
-| File Name | Primary Feature Tested | Expected Outcome |
-| :--- | :--- | :--- |
-| `epaAC-Data-1.csv` | **Duplicate Handling & Basic Mapping** | Successfully maps to SQL while rejecting identical row subsets based on Last-Record logic and neutralizing 'Missing' strings to NULL. |
-| `synth_labs_1000_cases.csv` | **Clinical Anomaly Detection** | Correctly parses reference ranges. Triggers High-Severity alerts for values lying outside absolute boundaries (e.g. Potassium levels). |
-| `synthetic_nursing_daily_reports.csv` | **NLP Entity Extraction** | Reads unstructured text fields to categorize report topics and extract critical incident keywords. |
-| `synthetic_device_motion_fall_data.csv` | **The Cross-Check Service** | When uploaded *with* the nursing reports, tests the relational sync. Logs 'Sensor Conflict' alerts if the text and sensors disagree on a hazard. |
-| `synthetic_medication_raw_inpatient.csv` | **Complex ORDER/ADMIN Timeline Logic** | Evaluates Adherence. Flags `ORDER` rows lacking an `ADMIN` given state. Scales severity to High if a missing dose is a critical medication like an anticoagulant. |
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Data Quality Index
+
+![Data Quality](docs/screenshots/data_quality.png)
 
 ---
 
-## 💶 Business Value & Use Cases
+## What it does
 
-In the DACH region alone, annual healthcare expenditure exceeds **€100 Billion**. A massive fraction of this is lost to administrative overhead, duplicated documentation, and retrospective error correction.
+Healthcare data is fragmented across incompatible systems. This engine acts as a central normalisation and intelligence layer — ingesting heterogeneous files, resolving structural inconsistencies, and surfacing clinical anomalies that would otherwise go undetected.
 
-By deploying this engine:
-- A **1-2% efficiency gain** in data mapping, billing accuracy, and proactive error reduction translates to **€800M – €1.6B saved annually**.
-- **Use Case:** Reducing manual lab reviews by 40% and preventing adverse events (missed critical diagnostics or unlogged falls) yielding massive operational and legal risk mitigation for hospital trusts.
+**Ingestion** — drag-and-drop interface for CSV, Excel, and PDF exports, routing each file type to the appropriate backend pipeline.
 
-## 🔭 Future Roadmap
-- **Scaling Architecture**: Deploy the engine across cloud architectures to organically support **1,400+ institutions** simultaneously.
-- **Live HL7/FHIR Integration**: Transition from static CSV upload boundaries to real-time ingestion streams parsing HL7/FHIR payloads standardizing cross-hospital communication layers.
+**Processing** — structural mapping, duplicate removal using last-record timestamp logic, and value neutralisation (corrupted strings like `'unknow'` or `'Missing'` converted directly to `NULL` for clean database ingestion).
+
+**Clinical intelligence** — NLP extraction deconstructs free-text nursing daily reports to identify clinical entities and incident keywords. A rules engine parses lab reference ranges (`_ref_low`, `_ref_high`) and flags out-of-bounds values with severity-graded alerts.
+
+**Hidden Fall Service** — the most novel feature: a cross-check synchronisation between human input and machine telemetry. If NLP detects a hazard keyword (`sturz`, `fall`, `floor`) in a nursing report but the corresponding motion sensor registers `fall_event_0_1 = 0`, a High Severity "Sensor Conflict" alert is triggered. Catches discrepancies neither system would surface alone.
+
+**Visualisation** — Angular dashboard with real-time KPIs (Data Quality Index, Medication Adherence, Anomaly Count), source distribution charts, an Anomaly Explorer with validate/dismiss workflow, and one-click PDF report export via html2canvas and jsPDF.
 
 ---
 
-## 🐳 One-Click Deployment (Docker)
+## Architecture
 
-The entire stack—frontend, backend, and database—is containerised and orchestrated via Docker Compose, enabling a reproducible, environment-agnostic deployment in a single command.
+![Architecture](docs/screenshots/architecture.png)
+
+Data sources (CSV, PDF, sensor telemetry) flow into the FastAPI mapping engine, which runs NLP extraction and the Hidden Fall cross-check service. All unified records are persisted to PostgreSQL + pgvector and surfaced through the Angular clinical dashboard.
+
+---
+
+## Quickstart (Docker)
+
+The entire stack — frontend, backend, and database — is orchestrated via Docker Compose.
 
 ### Prerequisites
 
-- **Docker Desktop** (v4.x or later) running on the host machine.
-- The following ports must be available and unoccupied:
+- Docker Desktop v4.x or later
+- Ports `80`, `8000`, and `5444` available on the host
 
-| Port | Service |
-| :--- | :--- |
-| `80` | Angular Frontend (Nginx) |
-| `8000` | FastAPI Backend |
-| `5444` | PostgreSQL + pgvector |
+### 1. Clone and configure
 
-### Launch
+```bash
+git clone https://github.com/RickySandi/smart-health-mapping.git
+cd smart-health-mapping
+cp .env.example .env
+# Edit .env with your preferred credentials
+```
 
-From the repository root, execute:
+### 2. Launch
 
 ```bash
 docker compose up --build -d
 ```
 
-Docker Compose will build the frontend and backend images, pull the `pgvector/pgvector:pg16` database image, apply the health-check dependency chain, and start all three services in detached mode.
+Docker Compose builds the frontend and backend images, pulls `pgvector/pgvector:pg16`, and starts all three services with health-check ordering.
 
-### Critical Initialisation — pgvector Extension
-
-The `vector` extension must be activated within the database before the backend can persist embeddings or create its schema. Run the following **once** after the first launch:
+### 3. Initialise pgvector (first run only)
 
 ```bash
 docker compose exec db psql -U postgres -d health_data -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
-> **Note:** Subsequent `docker compose up` invocations on an existing volume do not require this step—the extension persists with the data.
+This step only needs to be run once — the extension persists with the database volume.
 
-### Service Access URLs
+### Service URLs
 
 | Service | URL |
-| :--- | :--- |
-| **Frontend Dashboard** | http://localhost |
-| **Backend API (Swagger UI)** | http://localhost:8000/docs |
-| **Database (direct connection)** | `localhost:5444` |
+|---|---|
+| Frontend Dashboard | http://localhost |
+| Backend API (Swagger UI) | http://localhost:8000/docs |
+| Database | `localhost:5444` |
 
 ---
 
-## 🛠️ Tech Stack & Architecture
+## Test Data
 
-The engine is deliberately assembled from best-in-class, production-grade components across every layer of the stack.
+The `test_data/` directory contains five synthetic datasets designed to exercise each logic path independently.
 
-| Layer | Technology | Justification |
-| :--- | :--- | :--- |
-| **Frontend** | Angular 20, TailwindCSS, ngx-charts | Scalable, reactive component architecture with utility-first styling and declarative SVG visualisations. |
-| **Backend** | FastAPI (Python 3.11), SQLAlchemy | High-performance, async-first API framework with automatic OpenAPI documentation and a robust ORM for schema management. |
-| **Database** | PostgreSQL 16 + pgvector | Battle-tested relational integrity extended with high-dimensional vector storage, enabling clinical similarity searches and future embedding-based retrieval. |
-| **Reporting** | html2canvas, jsPDF | Fully client-side, dependency-light audit report generation—no server round-trip, no data leaving the browser. |
+| File | Feature tested | Expected outcome |
+|---|---|---|
+| `epaAC-Data-1.csv` | Duplicate handling & basic mapping | Deduplicates via last-record logic, neutralises `'Missing'` strings to `NULL` |
+| `synth_labs_1000_cases.csv` | Clinical anomaly detection | Parses reference ranges, triggers High Severity alerts for out-of-bounds values (e.g. potassium) |
+| `synthetic_nursing_daily_reports_en.csv` | NLP entity extraction | Categorises report topics, extracts critical incident keywords |
+| `synthetic_device_motion_fall_data.csv` | Hidden Fall cross-check | Upload alongside nursing reports to trigger Sensor Conflict alerts on mismatches |
+| `synthetic_medication_raw_inpatient.csv` | Medication timeline logic | Flags `ORDER` rows lacking `ADMIN` confirmation, escalates severity for critical drugs (e.g. anticoagulants) |
+
+---
+
+## Key Decisions & Findings
+
+**The Hidden Fall Service is the most architecturally interesting component.** A single data source — nursing notes or sensor telemetry — can independently look clean while hiding a real incident. The cross-check only works because both sources are unified into the same schema at ingestion time. This is the core argument for a centralised mapping engine: individual source quality checks would never catch these discrepancies.
+
+**pgvector was included for future extensibility, not current use.** PostgreSQL 16 handles all relational logic in the MVP. The pgvector extension is initialised and ready for embedding-based retrieval (e.g. semantic similarity search across clinical notes), but that layer is roadmap, not implemented. Using pgvector now avoids a schema migration later.
+
+**Client-side PDF export was a deliberate design constraint.** In healthcare, data leaving the browser to a third-party rendering service raises compliance questions. html2canvas + jsPDF generate the audit report entirely in the browser — no server round-trip, no data transmitted to an external service.
+
+**The rules engine uses explicit reference range parsing rather than a trained model** because clinical thresholds are not learned — they are defined by medical standards bodies. A ML-based anomaly detector would be opaque and harder to audit. Explicit rules are explainable, editable by clinical staff, and auditable in a regulatory context.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Angular 20, TailwindCSS, ngx-charts |
+| Backend | FastAPI (Python 3.11), SQLAlchemy |
+| Database | PostgreSQL 16 + pgvector |
+| Reporting | html2canvas, jsPDF |
+| Deployment | Docker Compose |
+
+---
+
+## Future Roadmap
+
+- **HL7/FHIR integration** — replace static CSV uploads with real-time ingestion streams parsing HL7/FHIR payloads for cross-hospital interoperability
+- **Embedding-based retrieval** — activate pgvector for semantic similarity search across clinical notes
+- **Multi-tenant cloud deployment** — horizontal scaling to support concurrent institutions
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
